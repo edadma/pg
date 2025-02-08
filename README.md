@@ -1,2 +1,2 @@
-Scala.js Template
-=================
+node-pg facade
+==============
