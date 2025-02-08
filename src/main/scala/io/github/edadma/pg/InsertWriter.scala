@@ -6,13 +6,16 @@
 //
 //trait ColumnWriter[T]:
 //  def write(value: T): js.Any
+//  def isDefaultPK(value: T): Boolean = false // By default, no special PK handling
 //
 //object ColumnWriter:
 //  given ColumnWriter[Int] with
-//    def write(value: Int): js.Any = value
+//    def write(value: Int): js.Any                 = value
+//    override def isDefaultPK(value: Int): Boolean = value == 0
 //
 //  given ColumnWriter[String] with
-//    def write(value: String): js.Any = value
+//    def write(value: String): js.Any                 = value
+//    override def isDefaultPK(value: String): Boolean = value == ""
 //
 //  given ColumnWriter[Boolean] with
 //    def write(value: Boolean): js.Any = value
@@ -20,6 +23,8 @@
 //  given [T](using writer: ColumnWriter[T]): ColumnWriter[Option[T]] with
 //    def write(value: Option[T]): js.Any =
 //      value.map(writer.write).getOrElse(null)
+//    override def isDefaultPK(value: Option[T]): Boolean =
+//      value.isEmpty || value.exists(writer.isDefaultPK)
 //
 //trait InsertWriter[T]:
 //  def toInsertValues(value: T): List[(String, js.Any)]
@@ -35,10 +40,10 @@
 //) extends InsertWriter[T]:
 //  def toInsertValues(value: T): List[(String, js.Any)] =
 //    val product = get(value)
-//    // Skip the id field if it's the first field and its value is 0
 //    writers.zip(product.productIterator.toList)
-//      .filterNot { case ((name, _), value) =>
-//        name == "id" && value.asInstanceOf[Int] == 0
+//      .filterNot { case ((name, writer), value) =>
+//        // Skip if it's a primary key field with default value
+//        name == "id" && writer.asInstanceOf[ColumnWriter[Any]].isDefaultPK(value)
 //      }
 //      .map { case ((dbColumn, writer), value) =>
 //        dbColumn -> writer.asInstanceOf[ColumnWriter[Any]].write(value)
@@ -87,19 +92,36 @@ package io.github.edadma.pg
 import scala.scalajs.js
 import scala.deriving.*
 import scala.compiletime.*
+import scala.annotation.StaticAnnotation
+import scala.quoted.*
+
+// Table name trait
+trait TableName[T]:
+  def name: String
+
+// Annotation for primary key fields
+case class PrimaryKey() extends StaticAnnotation
+
+// Helper for compile-time annotation detection
+object PKHelper:
+  inline def isPrimaryKey[T]: Boolean = ${ isPrimaryKeyImpl[T] }
+
+  private def isPrimaryKeyImpl[T: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    val tpe    = TypeRepr.of[T]
+    val symbol = tpe.typeSymbol
+    val hasPK  = symbol.annotations.exists(_.tpe =:= TypeRepr.of[PrimaryKey])
+    Expr(hasPK)
 
 trait ColumnWriter[T]:
   def write(value: T): js.Any
-  def isDefaultPK(value: T): Boolean = false // By default, no special PK handling
 
 object ColumnWriter:
   given ColumnWriter[Int] with
-    def write(value: Int): js.Any                 = value
-    override def isDefaultPK(value: Int): Boolean = value == 0
+    def write(value: Int): js.Any = value
 
   given ColumnWriter[String] with
-    def write(value: String): js.Any                 = value
-    override def isDefaultPK(value: String): Boolean = value == ""
+    def write(value: String): js.Any = value
 
   given ColumnWriter[Boolean] with
     def write(value: Boolean): js.Any = value
@@ -107,40 +129,42 @@ object ColumnWriter:
   given [T](using writer: ColumnWriter[T]): ColumnWriter[Option[T]] with
     def write(value: Option[T]): js.Any =
       value.map(writer.write).getOrElse(null)
-    override def isDefaultPK(value: Option[T]): Boolean =
-      value.isEmpty || value.exists(writer.isDefaultPK)
 
 trait InsertWriter[T]:
   def toInsertValues(value: T): List[(String, js.Any)]
   def tableName: String
 
-trait TableName[T]:
-  def name: String
-
 class DerivedInsertWriter[T](
-    writers: List[(String, ColumnWriter[?])],
+    writers: List[(String, ColumnWriter[?], Boolean)], // Added isPK flag
     table: String,
     get: T => Product,
 ) extends InsertWriter[T]:
   def toInsertValues(value: T): List[(String, js.Any)] =
     val product = get(value)
     writers.zip(product.productIterator.toList)
-      .filterNot { case ((name, writer), value) =>
-        // Skip if it's a primary key field with default value
-        name == "id" && writer.asInstanceOf[ColumnWriter[Any]].isDefaultPK(value)
+      .filterNot { case ((_, _, isPK), value) =>
+        // Skip if it's a PK field and the value is null
+        isPK && (value == null || value == "")
       }
-      .map { case ((dbColumn, writer), value) =>
+      .map { case ((dbColumn, writer, _), value) =>
         dbColumn -> writer.asInstanceOf[ColumnWriter[Any]].write(value)
       }
 
   def tableName: String = table
 
 object InsertWriter:
+  inline def summonIsPKs[T <: Tuple]: List[Boolean] =
+    inline erasedValue[T] match
+      case _: EmptyTuple => Nil
+      case _: (t *: ts) =>
+        PKHelper.isPrimaryKey[t] :: summonIsPKs[ts]
+
   inline given derived[T](using m: Mirror.ProductOf[T], table: TableName[T]): InsertWriter[T] =
     val labels = RowReader.getLabels[m.MirroredElemLabels]
     val writers = summonAll[Tuple.Map[m.MirroredElemTypes, ColumnWriter]].toList
       .asInstanceOf[List[ColumnWriter[?]]]
-    val pairs = labels.zip(writers)
+    val isPKs = summonIsPKs[m.MirroredElemTypes]
+    val pairs = labels.zip(writers).zip(isPKs).map { case ((l, w), pk) => (l, w, pk) }
     DerivedInsertWriter(pairs, table.name, (t: T) => t.asInstanceOf[Product])
 
 object Database:

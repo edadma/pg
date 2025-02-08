@@ -134,6 +134,74 @@
 //    error.printStackTrace()
 //  }
 
+//package io.github.edadma.pg
+//
+//import scala.scalajs.js
+//import js.JSConverters._
+//import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
+//import Database.InsertBuilder
+//
+//case class Product(id: String, name: String, price: Int) // id will be UUID
+//
+//object Product:
+//  given TableName[Product] with
+//    def name: String = "products"
+//  given RowReader[Product]    = RowReader.derived
+//  given InsertWriter[Product] = InsertWriter.derived
+//
+//@main def runUuidTest(): Unit =
+//  val config = PgConfig(
+//    user = "postgres",
+//    host = "localhost",
+//    database = "postgres",
+//    password = "postgres",
+//    port = 5432,
+//  )
+//
+//  val client   = new Client(config)
+//  given Client = client
+//
+//  val createTable = """
+//    DROP TABLE IF EXISTS products;
+//    CREATE TABLE products (
+//      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//      name TEXT NOT NULL,
+//      price INTEGER NOT NULL
+//    );
+//  """
+//
+//  // Test data - empty string for id will be filtered out
+//  val newProducts = List(
+//    Product("", "Laptop", 1000),
+//    Product("", "Mouse", 25),
+//    Product("", "Keyboard", 50),
+//  )
+//
+//  val program = for {
+//    _ <- client.connect().toFuture
+//    _ <- client.query(createTable).toFuture
+//    _ = println("Created table")
+//    insertResult <- new InsertBuilder[Product].values(newProducts*).execute().toFuture
+//    _ = println("\nInserted products:")
+//    _ = PgConverter.asList[Product](insertResult.rows).foreach { product =>
+//      println(s"Product ${product.id}: ${product.name} ($$${product.price})")
+//    }
+//    result <- client.query("SELECT * FROM products ORDER BY name").toFuture
+//    _      <- client.end().toFuture
+//  } yield {
+//    println("\nRetrieved all products:")
+//    val products = PgConverter.asList[Product](result.rows)
+//    products.foreach { product =>
+//      println(s"Product ${product.id}: ${product.name} ($$${product.price})")
+//    }
+//    products
+//  }
+//
+//  program.recover { case error =>
+//    println("Error occurred:")
+//    error.printStackTrace()
+//  }
+
 package io.github.edadma.pg
 
 import scala.scalajs.js
@@ -141,7 +209,11 @@ import js.JSConverters._
 import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
 import Database.InsertBuilder
 
-case class Product(id: String, name: String, price: Int) // id will be UUID
+case class Product(
+    @PrimaryKey id: String, // UUID
+    name: String,
+    price: Int,
+)
 
 object Product:
   given TableName[Product] with
@@ -149,7 +221,7 @@ object Product:
   given RowReader[Product]    = RowReader.derived
   given InsertWriter[Product] = InsertWriter.derived
 
-@main def runUuidTest(): Unit =
+@main def runTest(): Unit =
   val config = PgConfig(
     user = "postgres",
     host = "localhost",
@@ -170,11 +242,9 @@ object Product:
     );
   """
 
-  // Test data - empty string for id will be filtered out
   val newProducts = List(
-    Product("", "Laptop", 1000),
+    Product(null, "Laptop", 1000),
     Product("", "Mouse", 25),
-    Product("", "Keyboard", 50),
   )
 
   val program = for {
