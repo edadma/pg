@@ -1,0 +1,18 @@
+; scala.js orm proof of concept
+
+# config
+./
+package.json
+build.sbt
+
+# pg facade
+./src/main/scala/io/github/edadma/pg
+Client.scala
+
+# test code
+./src/test/scala/io/github/edadma/pg
+Main.scala
+
+# readme
+./
+README.md
