@@ -33,6 +33,21 @@ object PgConfig {
 }
 
 @js.native
+trait QueryConfig extends js.Object {
+  val text: String                         = js.native
+  val values: js.UndefOr[js.Array[js.Any]] = js.native
+}
+
+object QueryConfig {
+  def apply(text: String, values: js.Array[js.Any] = js.Array()): QueryConfig = {
+    js.Dynamic.literal(
+      text = text,
+      values = values,
+    ).asInstanceOf[QueryConfig]
+  }
+}
+
+@js.native
 trait QueryResult extends js.Object {
   val rows: js.Array[js.Dynamic] = js.native
 }
@@ -40,7 +55,8 @@ trait QueryResult extends js.Object {
 @js.native
 @JSImport("pg", "Client")
 class Client(config: PgConfig) extends js.Object {
-  def connect(): js.Promise[Unit]                       = js.native
-  def end(): js.Promise[Unit]                           = js.native
-  def query(queryText: String): js.Promise[QueryResult] = js.native
+  def connect(): js.Promise[Unit]                         = js.native
+  def end(): js.Promise[Unit]                             = js.native
+  def query(queryText: String): js.Promise[QueryResult]   = js.native
+  def query(config: QueryConfig): js.Promise[QueryResult] = js.native
 }
