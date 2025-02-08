@@ -66,6 +66,74 @@
 //    error.printStackTrace()
 //  }
 
+//package io.github.edadma.pg
+//
+//import scala.scalajs.js
+//import js.JSConverters._
+//import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
+//import Database.InsertBuilder
+//
+//case class User(id: Int, name: String, email: String)
+//
+//object User:
+//  given TableName[User] with
+//    def name: String = "users"
+//  given RowReader[User]    = RowReader.derived
+//  given InsertWriter[User] = InsertWriter.derived
+//
+//@main def run(): Unit =
+//  val config = PgConfig(
+//    user = "postgres",
+//    host = "localhost",
+//    database = "postgres",
+//    password = "postgres",
+//    port = 5432,
+//  )
+//
+//  val client   = new Client(config)
+//  given Client = client
+//
+//  val createTable = """
+//    DROP TABLE IF EXISTS users;
+//    CREATE TABLE users (
+//      id SERIAL PRIMARY KEY,
+//      name TEXT NOT NULL,
+//      email TEXT NOT NULL
+//    );
+//  """
+//
+//  // Test data
+//  val newUsers = List(
+//    User(0, "Carol", "carol@test.com"),
+//    User(0, "Dave", "dave@test.com"),
+//    User(0, "Eve", "eve@test.com"),
+//  )
+//
+//  val program = for {
+//    _ <- client.connect().toFuture
+//    _ <- client.query(createTable).toFuture
+//    _ = println("Created table")
+//    insertResult <- new InsertBuilder[User].values(newUsers*).execute().toFuture
+//    _ = println("\nInserted users:")
+//    _ = PgConverter.asList[User](insertResult.rows).foreach { user =>
+//      println(s"User ${user.id}: ${user.name} (${user.email})")
+//    }
+//    result <- client.query("SELECT * FROM users ORDER BY name").toFuture
+//    _      <- client.end().toFuture
+//  } yield {
+//    println("\nRetrieved all users:")
+//    val users = PgConverter.asList[User](result.rows)
+//    users.foreach { user =>
+//      println(s"User ${user.id}: ${user.name} (${user.email})")
+//    }
+//    users
+//  }
+//
+//  program.recover { case error =>
+//    println("Error occurred:")
+//    error.printStackTrace()
+//  }
+
 package io.github.edadma.pg
 
 import scala.scalajs.js
@@ -73,15 +141,15 @@ import js.JSConverters._
 import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
 import Database.InsertBuilder
 
-case class User(id: Int, name: String, email: String)
+case class Product(id: String, name: String, price: Int) // id will be UUID
 
-object User:
-  given TableName[User] with
-    def name: String = "users"
-  given RowReader[User]    = RowReader.derived
-  given InsertWriter[User] = InsertWriter.derived
+object Product:
+  given TableName[Product] with
+    def name: String = "products"
+  given RowReader[Product]    = RowReader.derived
+  given InsertWriter[Product] = InsertWriter.derived
 
-@main def run(): Unit =
+@main def runUuidTest(): Unit =
   val config = PgConfig(
     user = "postgres",
     host = "localhost",
@@ -94,39 +162,39 @@ object User:
   given Client = client
 
   val createTable = """
-    DROP TABLE IF EXISTS users;
-    CREATE TABLE users (
-      id SERIAL PRIMARY KEY,
+    DROP TABLE IF EXISTS products;
+    CREATE TABLE products (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name TEXT NOT NULL,
-      email TEXT NOT NULL
+      price INTEGER NOT NULL
     );
   """
 
-  // Test data
-  val newUsers = List(
-    User(0, "Carol", "carol@test.com"),
-    User(0, "Dave", "dave@test.com"),
-    User(0, "Eve", "eve@test.com"),
+  // Test data - empty string for id will be filtered out
+  val newProducts = List(
+    Product("", "Laptop", 1000),
+    Product("", "Mouse", 25),
+    Product("", "Keyboard", 50),
   )
 
   val program = for {
     _ <- client.connect().toFuture
     _ <- client.query(createTable).toFuture
     _ = println("Created table")
-    insertResult <- new InsertBuilder[User].values(newUsers*).execute().toFuture
-    _ = println("\nInserted users:")
-    _ = PgConverter.asList[User](insertResult.rows).foreach { user =>
-      println(s"User ${user.id}: ${user.name} (${user.email})")
+    insertResult <- new InsertBuilder[Product].values(newProducts*).execute().toFuture
+    _ = println("\nInserted products:")
+    _ = PgConverter.asList[Product](insertResult.rows).foreach { product =>
+      println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
-    result <- client.query("SELECT * FROM users ORDER BY name").toFuture
+    result <- client.query("SELECT * FROM products ORDER BY name").toFuture
     _      <- client.end().toFuture
   } yield {
-    println("\nRetrieved all users:")
-    val users = PgConverter.asList[User](result.rows)
-    users.foreach { user =>
-      println(s"User ${user.id}: ${user.name} (${user.email})")
+    println("\nRetrieved all products:")
+    val products = PgConverter.asList[Product](result.rows)
+    products.foreach { product =>
+      println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
-    users
+    products
   }
 
   program.recover { case error =>
