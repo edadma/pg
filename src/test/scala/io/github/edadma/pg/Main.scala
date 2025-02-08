@@ -32,7 +32,7 @@ case class User(id: Int, name: String, email: String)
     result <- client.query("SELECT * FROM users").toFuture
     _      <- client.end().toFuture
   } yield {
-    result.rows.map(rowToUser).toList
+    PgConverter.asList[User](result.rows)
   }
 
   program
