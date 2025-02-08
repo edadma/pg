@@ -55,8 +55,9 @@ trait QueryResult extends js.Object {
 @js.native
 @JSImport("pg", "Client")
 class Client(config: PgConfig) extends js.Object {
-  def connect(): js.Promise[Unit]                         = js.native
-  def end(): js.Promise[Unit]                             = js.native
-  def query(queryText: String): js.Promise[QueryResult]   = js.native
-  def query(config: QueryConfig): js.Promise[QueryResult] = js.native
+  def connect(): js.Promise[Unit]                                            = js.native
+  def end(): js.Promise[Unit]                                                = js.native
+  def query(queryText: String): js.Promise[QueryResult]                      = js.native
+  def query(config: QueryConfig): js.Promise[QueryResult]                    = js.native
+  def query(text: String, values: js.Array[js.Any]): js.Promise[QueryResult] = js.native
 }
