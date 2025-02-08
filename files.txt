@@ -8,6 +8,7 @@ build.sbt
 # pg facade
 ./src/main/scala/io/github/edadma/pg
 Client.scala
+PgConverter.scala
 
 # test code
 ./src/test/scala/io/github/edadma/pg
