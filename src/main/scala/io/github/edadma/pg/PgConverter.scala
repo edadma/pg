@@ -3,10 +3,6 @@ package io.github.edadma.pg
 import scala.scalajs.js
 import scala.deriving.*
 import scala.compiletime.*
-import scala.annotation.StaticAnnotation
-
-// Column name annotation
-case class column(name: String) extends StaticAnnotation
 
 trait ColumnReader[T]:
   def read(value: js.Dynamic): T
@@ -40,12 +36,23 @@ class DerivedRowReader[T](
     build(Tuple.fromArray(values.toArray))
 
 object RowReader:
+  // Convert camelCase to snake_case at compile time
+  inline def camelToSnake(name: String): String =
+    val result = new StringBuilder
+    var i      = 0
+    while i < name.length do
+      val c = name(i)
+      if c.isUpper && i > 0 then result.append('_')
+      result.append(c.toLower)
+      i += 1
+    result.toString
+
   inline def getLabels[T <: Tuple]: List[String] = inline erasedValue[T] match
     case _: EmptyTuple => Nil
-    case _: (t *: ts)  => constValue[t].toString :: getLabels[ts]
+    case _: (t *: ts) =>
+      val fieldName = constValue[t].toString
+      camelToSnake(fieldName) :: getLabels[ts]
 
-  // Note: For now, we'll use a simpler approach where field names exactly match column names
-  // We'll need to evolve this to handle annotations properly
   inline given derived[T](using m: Mirror.Of[T]): RowReader[T] =
     inline m match
       case p: Mirror.ProductOf[T] =>
