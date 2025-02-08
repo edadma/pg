@@ -40,6 +40,5 @@ case class User(id: Int, name: String, email: String)
       println(s"Found users: $users")
     }
     .recover { case error =>
-      println(s"Database error: ${error.getMessage}")
       error.printStackTrace()
     }
