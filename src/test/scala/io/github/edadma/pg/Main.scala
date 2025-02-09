@@ -244,7 +244,7 @@ object Product:
 
   val newProducts = List(
     Product(null, "Laptop", 1000),
-    Product("", "Mouse", 25),
+    Product(null, "Mouse", 25),
   )
 
   val program = for {
