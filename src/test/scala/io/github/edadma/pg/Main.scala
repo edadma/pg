@@ -217,8 +217,6 @@ case class Product(
 object Product:
   given TableName[Product] with
     def name: String = "products"
-  given RowReader[Product]    = RowReader.derived
-  given InsertWriter[Product] = InsertWriter.derived
 
 @main def runTest(): Unit =
   val config = PgConfig(
