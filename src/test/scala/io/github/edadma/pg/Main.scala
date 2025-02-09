@@ -214,9 +214,8 @@ case class Product(
     @PrimaryKey id: String = null,
 )
 
-object Product:
-  given TableName[Product] with
-    def name: String = "products"
+object ProductTable extends Table[Product]:
+  def name = "products"
 
 @main def runTest(): Unit =
   val config = PgConfig(
@@ -248,7 +247,7 @@ object Product:
     _ <- client.connect().toFuture
     _ <- client.query(createTable).toFuture
     _ = println("Created table")
-    insertResult <- Database.insert(newProducts*)
+    insertResult <- ProductTable.insert(newProducts*)
     _ = println("\nInserted products:")
     _ = insertResult.foreach { product =>
       println(s"Product ${product.id}: ${product.name} ($$${product.price})")
