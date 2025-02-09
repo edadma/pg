@@ -95,23 +95,28 @@ import scala.compiletime.*
 import scala.annotation.StaticAnnotation
 import scala.quoted.*
 
-// Table name trait
 trait TableName[T]:
   def name: String
 
-// Annotation for primary key fields
 case class PrimaryKey() extends StaticAnnotation
 
-// Helper for compile-time annotation detection
+// Simplified PKHelper that just provides the macro entry point
 object PKHelper:
-  inline def isPrimaryKey[T]: Boolean = ${ isPrimaryKeyImpl[T] }
+  inline def summonIsPKs[T]: List[Boolean] = ${ summonIsPKsImpl[T] }
 
-  private def isPrimaryKeyImpl[T: Type](using Quotes): Expr[Boolean] =
+  private def summonIsPKsImpl[T: Type](using Quotes): Expr[List[Boolean]] =
     import quotes.reflect.*
+
+    // Get the case class's primary constructor parameters
     val tpe    = TypeRepr.of[T]
-    val symbol = tpe.typeSymbol
-    val hasPK  = symbol.annotations.exists(_.tpe =:= TypeRepr.of[PrimaryKey])
-    Expr(hasPK)
+    val params = tpe.typeSymbol.primaryConstructor.paramSymss.flatten
+
+    // Check each parameter for the PrimaryKey annotation
+    val isPKs = params.map { param =>
+      param.annotations.exists(_.tpe =:= TypeRepr.of[PrimaryKey])
+    }
+
+    Expr(isPKs)
 
 trait ColumnWriter[T]:
   def write(value: T): js.Any
@@ -135,7 +140,7 @@ trait InsertWriter[T]:
   def tableName: String
 
 class DerivedInsertWriter[T](
-    writers: List[(String, ColumnWriter[?], Boolean)], // Added isPK flag
+    writers: List[(String, ColumnWriter[?], Boolean)],
     table: String,
     get: T => Product,
 ) extends InsertWriter[T]:
@@ -143,7 +148,7 @@ class DerivedInsertWriter[T](
     val product = get(value)
     writers.zip(product.productIterator.toList)
       .filterNot { case ((_, _, isPK), value) =>
-        // Skip if it's a PK field and the value is null
+        // For PK fields, filter out if value is null or empty string
         isPK && (value == null || value == "")
       }
       .map { case ((dbColumn, writer, _), value) =>
@@ -153,17 +158,11 @@ class DerivedInsertWriter[T](
   def tableName: String = table
 
 object InsertWriter:
-  inline def summonIsPKs[T <: Tuple]: List[Boolean] =
-    inline erasedValue[T] match
-      case _: EmptyTuple => Nil
-      case _: (t *: ts) =>
-        PKHelper.isPrimaryKey[t] :: summonIsPKs[ts]
-
   inline given derived[T](using m: Mirror.ProductOf[T], table: TableName[T]): InsertWriter[T] =
     val labels = RowReader.getLabels[m.MirroredElemLabels]
     val writers = summonAll[Tuple.Map[m.MirroredElemTypes, ColumnWriter]].toList
       .asInstanceOf[List[ColumnWriter[?]]]
-    val isPKs = summonIsPKs[m.MirroredElemTypes]
+    val isPKs = PKHelper.summonIsPKs[T] // Call the macro here
     val pairs = labels.zip(writers).zip(isPKs).map { case ((l, w), pk) => (l, w, pk) }
     DerivedInsertWriter(pairs, table.name, (t: T) => t.asInstanceOf[Product])
 
