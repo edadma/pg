@@ -209,9 +209,9 @@ import js.JSConverters._
 import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
 
 case class Product(
-    @PrimaryKey id: String, // UUID
     name: String,
     price: Int,
+    @PrimaryKey id: String = null,
 )
 
 object Product:
@@ -242,8 +242,8 @@ object Product:
   """
 
   val newProducts = List(
-    Product(null, "Laptop", 1000),
-    Product(null, "Mouse", 25),
+    Product("Laptop", 1000),
+    Product("Mouse", 25),
   )
 
   val program = for {
