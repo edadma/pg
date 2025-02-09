@@ -2,7 +2,7 @@ package io.github.edadma.pg
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{Future, Promise, ExecutionContext}
 import scala.scalajs.js.JSConverters._
 
 @js.native
@@ -52,12 +52,31 @@ trait QueryResult extends js.Object {
   val rows: js.Array[js.Dynamic] = js.native
 }
 
+// The underlying JS client
 @js.native
 @JSImport("pg", "Client")
-class Client(config: PgConfig) extends js.Object {
+class JSClient(config: PgConfig) extends js.Object {
   def connect(): js.Promise[Unit]                                            = js.native
   def end(): js.Promise[Unit]                                                = js.native
   def query(queryText: String): js.Promise[QueryResult]                      = js.native
   def query(config: QueryConfig): js.Promise[QueryResult]                    = js.native
   def query(text: String, values: js.Array[js.Any]): js.Promise[QueryResult] = js.native
+}
+
+// Our Scala wrapper
+class Client(config: PgConfig)(using ExecutionContext) {
+  private val jsClient = new JSClient(config)
+
+  def connect: Future[Unit] = jsClient.connect().toFuture
+
+  def end: Future[Unit] = jsClient.end().toFuture
+
+  def query(queryText: String): Future[QueryResult] =
+    jsClient.query(queryText).toFuture
+
+  def query(config: QueryConfig): Future[QueryResult] =
+    jsClient.query(config).toFuture
+
+  def query(text: String, values: js.Array[js.Any]): Future[QueryResult] =
+    jsClient.query(text, values).toFuture
 }

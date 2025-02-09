@@ -244,8 +244,8 @@ object ProductTable extends Table[Product]:
   )
 
   val program = for {
-    _ <- client.connect().toFuture
-    _ <- client.query(createTable).toFuture
+    _ <- client.connect
+    _ <- client.query(createTable)
     _ = println("Created table")
     insertResult <- ProductTable.insert(newProducts*)
     _ = println("\nInserted products:")
@@ -253,7 +253,7 @@ object ProductTable extends Table[Product]:
       println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
     products <- ProductTable.findAll()
-    _        <- client.end().toFuture
+    _        <- client.end
   } yield {
     println("\nRetrieved all products:")
     products.foreach { product =>

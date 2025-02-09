@@ -59,26 +59,21 @@ abstract class Table[T](using val reader: RowReader[T], val writer: InsertWriter
       """
 
       client.query(query, js.Array(values*))
-        .toFuture
         .map(result => PgConverter.asList[T](result.rows))
 
   def findAll()(using client: Client, ec: ExecutionContext): Future[List[T]] =
     client.query(s"SELECT * FROM $name")
-      .toFuture
       .map(result => PgConverter.asList[T](result.rows))
 
   def findById[K](id: K)(using client: Client, ec: ExecutionContext): Future[Option[T]] =
     client.query(s"SELECT * FROM $name WHERE id = $$1", js.Array(id.asInstanceOf[js.Any]))
-      .toFuture
       .map(result => PgConverter.asList[T](result.rows).headOption)
 
   def where(condition: String)(using client: Client, ec: ExecutionContext): Future[List[T]] =
     client.query(s"SELECT * FROM $name WHERE $condition")
-      .toFuture
       .map(result => PgConverter.asList[T](result.rows))
 
   def orderBy(field: String, ascending: Boolean = true)(using client: Client, ec: ExecutionContext): Future[List[T]] =
     val direction = if ascending then "ASC" else "DESC"
     client.query(s"SELECT * FROM $name ORDER BY $field $direction")
-      .toFuture
       .map(result => PgConverter.asList[T](result.rows))
