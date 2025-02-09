@@ -252,11 +252,10 @@ object ProductTable extends Table[Product]:
     _ = insertResult.foreach { product =>
       println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
-    result <- client.query("SELECT * FROM products ORDER BY name").toFuture
-    _      <- client.end().toFuture
+    products <- ProductTable.findAll()
+    _        <- client.end().toFuture
   } yield {
     println("\nRetrieved all products:")
-    val products = PgConverter.asList[Product](result.rows)
     products.foreach { product =>
       println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
