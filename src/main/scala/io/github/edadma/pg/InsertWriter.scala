@@ -93,6 +93,7 @@ import scala.scalajs.js
 import scala.deriving.*
 import scala.compiletime.*
 import scala.annotation.StaticAnnotation
+import scala.concurrent.{ExecutionContext, Future}
 import scala.quoted.*
 
 trait TableName[T]:
@@ -167,29 +168,31 @@ object InsertWriter:
     DerivedInsertWriter(pairs, table.name, (t: T) => t.asInstanceOf[Product])
 
 object Database:
-  class InsertBuilder[T: InsertWriter](using client: Client):
-    def values(items: T*): InsertOperation[T] =
-      InsertOperation(items.toList)
+  def insert[T](items: T*)(using
+      writer: InsertWriter[T],
+      reader: RowReader[T],
+      client: Client,
+      ec: ExecutionContext,
+  ): Future[List[T]] =
+    if items.isEmpty then
+      Future.failed(new Exception("No values to insert"))
+    else
+      val columnValues = writer.toInsertValues(items.head)
+      val columns      = columnValues.map(_._1)
 
-  class InsertOperation[T](items: List[T])(using writer: InsertWriter[T], client: Client):
-    def execute(): js.Promise[QueryResult] =
-      if items.isEmpty then
-        js.Promise.reject(new Exception("No values to insert")).asInstanceOf[js.Promise[QueryResult]]
-      else
-        val columnValues = writer.toInsertValues(items.head)
-        val columns      = columnValues.map(_._1)
+      val placeholders = items.indices.map { i =>
+        val offset = i * columns.length + 1
+        s"(${columns.indices.map(j => s"$$${offset + j}").mkString(", ")})"
+      }.mkString(", ")
 
-        val placeholders = items.indices.map { i =>
-          val offset = i * columns.length + 1
-          s"(${columns.indices.map(j => s"$$${offset + j}").mkString(", ")})"
-        }.mkString(", ")
+      val values = items.flatMap(item => writer.toInsertValues(item).map(_._2))
+      val query = s"""
+        INSERT INTO ${writer.tableName}
+        (${columns.mkString(", ")})
+        VALUES $placeholders
+        RETURNING *
+      """
 
-        val values = items.flatMap(item => writer.toInsertValues(item).map(_._2))
-        val query = s"""
-          INSERT INTO ${writer.tableName}
-          (${columns.mkString(", ")})
-          VALUES $placeholders
-          RETURNING *
-        """
-
-        client.query(query, js.Array(values*))
+      client.query(query, js.Array(values*))
+        .toFuture
+        .map(result => PgConverter.asList[T](result.rows))

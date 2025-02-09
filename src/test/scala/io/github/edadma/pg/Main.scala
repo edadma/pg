@@ -207,7 +207,6 @@ package io.github.edadma.pg
 import scala.scalajs.js
 import js.JSConverters._
 import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits.global
-import Database.InsertBuilder
 
 case class Product(
     @PrimaryKey id: String, // UUID
@@ -251,9 +250,9 @@ object Product:
     _ <- client.connect().toFuture
     _ <- client.query(createTable).toFuture
     _ = println("Created table")
-    insertResult <- new InsertBuilder[Product].values(newProducts*).execute().toFuture
+    insertResult <- Database.insert(newProducts*)
     _ = println("\nInserted products:")
-    _ = PgConverter.asList[Product](insertResult.rows).foreach { product =>
+    _ = insertResult.foreach { product =>
       println(s"Product ${product.id}: ${product.name} ($$${product.price})")
     }
     result <- client.query("SELECT * FROM products ORDER BY name").toFuture
