@@ -27,7 +27,7 @@ trait RowReader[T]:
 
 class DerivedRowReader[T](
     readers: List[(String, ColumnReader[?])],
-    build: Product => T,
+    build: Tuple => T,
 ) extends RowReader[T]:
   def fromRow(row: js.Dynamic): T =
     val values = readers.map { case (dbColumn, reader) =>
